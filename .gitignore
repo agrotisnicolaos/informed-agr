@@ -5,3 +5,9 @@ node_modules/
 *.log
 .vscode/
 .idea/
+
+# Per-project Graphify output — should not be checked in to the template
+graphify-out/
+
+# Per-project GSD planning artifacts (the template ships none; new projects generate)
+.planning/

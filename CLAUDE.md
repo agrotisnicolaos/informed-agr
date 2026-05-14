@@ -14,7 +14,7 @@ Project-wide instructions for Claude Code agents. Read top to bottom on every ne
 4. [docs/budget.md](docs/budget.md) — $0/mo ceiling, paid-recommendation approval flow
 5. [docs/decisions.md](docs/decisions.md) — locked decisions log (D-001+), append-only
 
-After reading the five, **grep for every file path the plan names**. If any are missing or renamed, push back to `tech-lead` before continuing. (Doc-drift guard — issue #1 in `learnings-for-next-project/AGENT-IMPROVEMENTS.md`.)
+After reading the five, **grep for every file path the plan names**. If any are missing or renamed, push back to `tech-lead` before continuing. (Doc-drift guard — issue #1 in [`AGENT-IMPROVEMENTS.md`](AGENT-IMPROVEMENTS.md).)
 
 ---
 
@@ -63,30 +63,51 @@ Fields/behaviors that have regressed before. Any agent touching one of these mus
 
 When importing artifacts from a previous repo or previous architectural era, mark them stale at the top of every file (`> STALE — superseded by D-NNN`) **before** any agent reads them. Code wins where docs disagree. *(Issue #5.)*
 
-The [`learnings-for-next-project/`](learnings-for-next-project/) directory is **reference material** — not project state. Do not cite it as authoritative for the current product; cite `docs/` and `decisions.md` instead.
+This repo is itself a starter kit (a GitHub template). The [`archive/learnings-for-next-project/`](archive/learnings-for-next-project/) directory is the **frozen origin snapshot** of the kit's distillation — read once for full context, but do not cite as authoritative for the current product. Cite `docs/` and `docs/decisions.md` instead.
 
 ---
 
 ## 6. Day-one workflow
 
+0. **Run [`SETUP.md`](SETUP.md) install steps** if anything in the §7 inventory below is missing on this machine. Idempotent — already-installed pieces are skipped. See also [`USE-THIS-TEMPLATE.md`](USE-THIS-TEMPLATE.md) for the first-5-minutes path after spawning a new repo from this template.
 1. `/gsd-new-project` — establishes PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md.
 2. Fill in `docs/product-context.md`, `docs/constraints.md`, `docs/phasing.md`, `docs/budget.md`. Leave `docs/decisions.md` empty until the first locked decision.
-3. `/gsd-new-milestone` — establish the first milestone.
-4. `/gsd-spec-phase 1` → `/gsd-discuss-phase 1` → `/gsd-plan-phase 1` → `/gsd-execute-phase 1` → `/gsd-verify-work 1` → `/gsd-ship`.
+3. `/graphify` — build the codebase knowledge graph (one-time per project; rerun after major refactors).
+4. `/gsd-new-milestone` — establish the first milestone.
+5. `/gsd-spec-phase 1` → `/gsd-discuss-phase 1` → `/gsd-plan-phase 1` → `/gsd-execute-phase 1` → `/gsd-verify-work 1` → `/gsd-ship`.
 
-If the next platform isn't iOS: rename `.claude/agents/ios-builder.md` to `.claude/agents/<platform>-builder.md` and rewrite the "What the existing repo already chose" section. Keep the rest of the structure.
+If the next platform isn't iOS, follow [`.claude/agents/RENAME-IF-NOT-iOS.md`](.claude/agents/RENAME-IF-NOT-iOS.md) and update the routing table in §2 above.
 
 ---
 
-## 7. Plugin / skill inventory
+## 7. Plugin / MCP / skill inventory
 
-Installed at user scope (follows you across all repos):
+Installed at user scope (follows you across all repos). Install via [`SETUP.md`](SETUP.md).
 
+**Plugins:**
 - `superpowers` — TDD, brainstorming, plan-writing, code review, debugging, parallel-agent dispatch
 - `frontend-design` — production-grade frontend code
 - `skill-creator` — author, edit, eval skills
 - `context-mode` — keep large tool outputs out of the context window (MCP server + `/ctx-*` commands)
 - `claude-mem` — cross-session memory (start worker with `npx claude-mem start`)
-- GSD (`~/.claude/get-shit-done/`) — ~65 `gsd-*` skills for the project lifecycle
 
-Run `/gsd-help` for the GSD command surface.
+**MCP servers:**
+- `context7` — up-to-date library/framework docs (**required**: GSD's planner/executor/researchers call `mcp__context7__*` in 9+ workflow files; without it, GSD silently degrades)
+- `sequential-thinking` — structured-reasoning tool with explicit step records as tool output (audit trail; distinct from native extended thinking)
+- `context-mode` MCP — batched shell + FTS5 search of recent tool outputs
+
+**Slash commands / skills:**
+- `/graphify` — third-party knowledge-graph builder; writes to `graphify-out/` (multimodal input, Obsidian-vault-compatible)
+- GSD (`~/.claude/get-shit-done/`) — ~65 `gsd-*` skills for the project lifecycle, including `gsd-graphify` which writes a separate graph to `.planning/graphs/` for the GSD workflow
+
+**GUI:** Obsidian — visualizes `graphify-out/` as a vault. Standalone app; no Claude integration.
+
+**Three "codebase knowledge" systems coexist** (intentional, different stores, no conflict):
+
+| System | Stores in | Strength |
+|---|---|---|
+| `gsd-graphify` | `.planning/graphs/graph.json` | Queryable graph for GSD workflow (BFS expand, diff over time) |
+| `/graphify` (third-party) | `graphify-out/` | Multimodal input + Obsidian visual |
+| `context-mode` | FTS5 index of recent tool outputs | Live keyword search across batched commands |
+
+Run `/gsd-help` for the GSD command surface. Run `claude mcp list` to verify MCP servers.

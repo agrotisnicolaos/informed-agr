@@ -16,9 +16,14 @@ ls ~/.claude/plugins/installed_plugins.json 2>/dev/null && cat ~/.claude/plugins
 ls ~/.claude/skills/ 2>/dev/null | head
 ls ~/.claude/get-shit-done/VERSION 2>/dev/null
 claude mcp list 2>/dev/null
+node --version       # need ≥18 for claude-mem
+python3 --version    # need ≥3.10 for Graphify (Xcode CLT ships 3.9 — see §2d)
+which brew           # macOS: needed for Obsidian + Python upgrade path
 ```
 
 Anything already present at the **user scope** (not just project scope) is reusable — do not reinstall.
+
+**Python 3.9 trap:** macOS with only Xcode CLT installed has Python 3.9, which is below Graphify's 3.10+ requirement. Install pipx via brew (which pulls a current Python automatically) before §2d: `brew install pipx`. This is non-destructive — your system Python stays at 3.9.
 
 ---
 
@@ -102,23 +107,25 @@ Node ≥18 required.
 
 Context7 is an MCP server that provides up-to-date library/framework docs to Claude. **GSD's planner, executor, and researcher agents already call `mcp__context7__*` tools** (`resolve-library-id`, `get-library-docs`) in 9+ workflow files. Without Context7 installed, those calls silently fail and GSD degrades.
 
-**Install:** follow the upstream README at https://github.com/upstash/context7 for the current command. Install paths shift; do not hardcode. Typical patterns:
+**Install (verified working 2026-05-13, hosted free tier — no API key needed for testing):**
 
 ```bash
-# Option A — interactive setup with OAuth
-npx ctx7 setup
-
-# Option B — manual MCP server registration
-claude mcp add context7 -- npx -y @upstash/context7-mcp@latest
+claude mcp add --transport http -s user context7 https://mcp.context7.com/mcp
 ```
+
+The `-s user` flag is **required** — without it, the MCP server is added at project scope and won't follow you across repos.
+
+If you hit rate limits, get an API key from https://context7.com and add it via `--header "Authorization: Bearer <key>"`. Or use the local stdio variant: `claude mcp add -s user context7 -- npx -y @upstash/context7-mcp@latest`.
 
 **Verify install:**
 
 ```bash
-claude mcp list | grep context7
+claude mcp list | grep context7   # expect: context7: https://mcp.context7.com/mcp (HTTP) - ✓ Connected
 ```
 
 After install, GSD's `mcp__context7__*` tool calls will resolve correctly.
+
+> Note: Context7's GitHub default branch is `master`, not `main` — relevant only if you're spelunking the upstream README.
 
 ### 2d. Install Graphify + Obsidian (required)
 
@@ -126,9 +133,44 @@ After install, GSD's `mcp__context7__*` tool calls will resolve correctly.
 
 **Obsidian** is a standalone GUI app that opens `graphify-out/` as a vault for visual inspection of the graph (no Claude integration; purely for the human).
 
-**Install Graphify:** follow https://github.com/safishamsi/graphify for the current command. Then run `/graphify` once per project — produces `graphify-out/{graph.json, graph.html}`.
+**Install Graphify (verified working 2026-05-13):**
 
-**Install Obsidian:** download from https://obsidian.md/download. After first `/graphify` run, open `graphify-out/` as a vault: Obsidian → Open folder as vault → select `graphify-out/`.
+```bash
+# Prereq from §0: pipx installed via brew (pulls a current Python; bypasses the macOS 3.9 trap)
+brew install pipx 2>/dev/null      # idempotent
+
+# Install the CLI (PyPI name is graphifyy — typo intentional, name reclaim pending)
+pipx install graphifyy
+
+# Register the Claude Code skill
+graphify install --platform claude
+```
+
+After `graphify install --platform claude` runs, three things happen:
+
+1. `~/.claude/skills/graphify/SKILL.md` is created — the slash command `/graphify` becomes available in Claude Code (verify in `/` autocomplete).
+2. `~/.claude/CLAUDE.md` is created/updated with a 3-line global instruction telling Claude to invoke the graphify skill on `/graphify`. **Benign side-effect** — project-level CLAUDE.md still wins on conflicts. Inspect after install if curious.
+3. The `graphify` CLI is exposed at `~/.local/bin/graphify`.
+
+> **Alternative install paths** (if `pipx install graphifyy` fails on your system):
+> - `uv tool install graphifyy` — same outcome via uv instead of pipx (some machines have uv pre-installed; it places the binary at `~/.local/share/uv/tools/graphifyy/bin/graphify`).
+> - Manual: `mkdir -p ~/.claude/skills/graphify && curl -fsSL https://raw.githubusercontent.com/safishamsi/graphify/v1/skills/graphify/skill.md > ~/.claude/skills/graphify/SKILL.md` — registers the skill but skips the CLI; you'll need to `pip install graphifyy` separately to get the `graphify` command.
+
+**Verify install:**
+
+```bash
+which graphify && graphify --help | head -3   # CLI present
+ls ~/.claude/skills/graphify/SKILL.md         # skill registered
+# In Claude Code: type "/" and confirm "graphify" appears in autocomplete
+```
+
+**Install Obsidian:**
+
+```bash
+brew install --cask obsidian     # skip if /Applications/Obsidian.app already exists
+```
+
+After first `/graphify` run in a project, open `graphify-out/` as a vault: Obsidian → "Open folder as vault" → select `graphify-out/`.
 
 **Overlap note (important):** three "codebase knowledge" systems will coexist in this template, and that's intentional:
 
@@ -144,16 +186,18 @@ Different stores, different file paths — they don't fight. Pick the one that m
 
 An MCP server that gives Claude a callable `sequentialthinking` tool — emits explicit step records as tool output. Distinct from Claude's native extended thinking, which stays inside the model. Use sequential-thinking when you want the chain of reasoning **recorded** in tool output (audit trail, post-hoc inspection, or for hard branching problems where Claude needs to revisit prior steps).
 
-**Install:** follow https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking for the current command. Typical:
+**Install (verified working 2026-05-13):**
 
 ```bash
-claude mcp add sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
+claude mcp add -s user sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking
 ```
+
+The `-s user` flag is **required** — without it the server is added at project scope and won't follow you across repos.
 
 **Verify install:**
 
 ```bash
-claude mcp list | grep sequential
+claude mcp list | grep sequential   # expect: sequential-thinking: ... - ✓ Connected
 ```
 
 ---
@@ -248,13 +292,18 @@ Writes parallel analyses to `.planning/codebase/`.
 After all of the above:
 
 ```bash
-ls -la .claude/agents/         # should show 6 .md files + RENAME-IF-NOT-iOS.md
-ls -la docs/                    # should show the 5 canonical docs
-cat CLAUDE.md                   # should reference the 5 docs + routing table
-claude mcp list                 # should include context7 and sequential-thinking
+ls -la .claude/agents/                                     # 6 agent files + RENAME-IF-NOT-iOS.md
+ls -la docs/                                               # 5 canonical docs
+cat CLAUDE.md                                              # references the 5 docs + routing table
+claude mcp list | grep -E '(context7|sequential-thinking)' # both present, both ✓ Connected
+which graphify && graphify --help | head -3                # graphify CLI available
+ls ~/.claude/skills/graphify/SKILL.md                      # graphify skill registered
+ls /Applications/Obsidian.app                              # Obsidian installed (macOS)
 ```
 
 In Claude Code, type `/` and confirm you see `gsd-*`, `superpowers:*`, `context-mode:*`, `frontend-design:*`, `skill-creator:*`, and `graphify` skills/commands listed.
+
+**Trial smoke-test reference:** see [`TRIAL.md`](TRIAL.md) on the `trial/smoke-test-setup` branch for a verified end-to-end install run dated 2026-05-13, including which findings were folded back into this document.
 
 ---
 
